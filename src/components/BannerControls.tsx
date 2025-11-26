@@ -2,7 +2,7 @@ import { memo } from "react"
 import { Input } from "./ui/input"
 import { Card, CardContent } from "./ui/card"
 import { Button } from "./ui/button"
-import { BookSearch } from "./BookSearch"
+import { ManualBookAdd } from "./ManualBookAdd"
 import { Download, Loader2 } from "lucide-react"
 import { BannerConfig, Book } from "@/types"
 import { FONT_OPTIONS } from "@/utils/constants"
@@ -105,7 +105,7 @@ export const BannerControls = memo(function BannerControls({
                     Adicionar Livro
                   </label>
                   <div className="w-full sm:w-auto overflow-x-auto">
-                    <BookSearch onAddManualBook={onAddBook} />
+                    <ManualBookAdd onAddBook={onAddBook} />
                   </div>
                 </div>
 
