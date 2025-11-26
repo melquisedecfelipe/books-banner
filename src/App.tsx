@@ -4,6 +4,7 @@ import { BannerPreview, BannerPreviewHandle } from "./components/BannerPreview"
 import { BannerControls } from "./components/BannerControls"
 import { useBannerConfig } from "./hooks/useBannerConfig"
 import { useBooks } from "./hooks/useBooks"
+import { Toaster } from "./components/ui/toaster"
 
 function App(): JSX.Element {
   const { books, addBook, removeBook } = useBooks()
@@ -43,27 +44,30 @@ function App(): JSX.Element {
   }, [])
 
   return (
-    <div
-      className="relative w-full"
-      style={{ minHeight: "100vh" }}
-    >
-      <BannerControls
-        config={config}
-        isGenerating={isGenerating}
-        onSeriesNameChange={updateSeriesName}
-        onTitleFontChange={updateTitleFont}
-        onTitleColorChange={updateTitleColor}
-        onBackgroundChange={updateBackground}
-        onAddBook={handleSelectBook}
-        onDownload={handleDownload}
-      />
+    <>
+      <div
+        className="relative w-full"
+        style={{ minHeight: "100vh" }}
+      >
+        <BannerControls
+          config={config}
+          isGenerating={isGenerating}
+          onSeriesNameChange={updateSeriesName}
+          onTitleFontChange={updateTitleFont}
+          onTitleColorChange={updateTitleColor}
+          onBackgroundChange={updateBackground}
+          onAddBook={handleSelectBook}
+          onDownload={handleDownload}
+        />
 
-      <BannerPreview
-        ref={bannerPreviewRef}
-        data={seriesData}
-        onRemoveBook={handleRemoveBook}
-      />
-    </div>
+        <BannerPreview
+          ref={bannerPreviewRef}
+          data={seriesData}
+          onRemoveBook={handleRemoveBook}
+        />
+      </div>
+      <Toaster />
+    </>
   )
 }
 
