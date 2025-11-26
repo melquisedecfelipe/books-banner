@@ -1,6 +1,7 @@
 import { memo } from "react"
 import { Book } from "@/types"
 import { X } from "lucide-react"
+import { NO_COVER_PLACEHOLDER } from "@/utils/constants"
 
 interface BookCoverProps {
   readonly book: Book
@@ -31,8 +32,19 @@ export const BookCover = memo(function BookCover({
       ) : book.status === "unreleased" ? (
         <UnreleasedPlaceholder background={background} />
       ) : (
-        <div className="w-full aspect-[2/3] bg-gray-200 flex items-center justify-center text-gray-400 text-xs">
-          Sem capa
+        <div
+          className="w-full aspect-[2/3] flex items-center justify-center relative"
+          style={{
+            backgroundColor: NO_COVER_PLACEHOLDER.backgroundColor,
+            color: NO_COVER_PLACEHOLDER.textColor,
+            fontSize: `${NO_COVER_PLACEHOLDER.fontSize}px`,
+            fontFamily: NO_COVER_PLACEHOLDER.fontFamily,
+            borderWidth: `${NO_COVER_PLACEHOLDER.borderWidth}px`,
+            borderStyle: NO_COVER_PLACEHOLDER.borderStyle,
+            borderColor: NO_COVER_PLACEHOLDER.borderColor,
+          }}
+        >
+          {NO_COVER_PLACEHOLDER.text}
         </div>
       )}
 
@@ -57,7 +69,7 @@ interface UnreleasedPlaceholderProps {
 function UnreleasedPlaceholder({ background }: UnreleasedPlaceholderProps) {
   return (
     <div
-      className="w-full aspect-[2/3] border-2 border-dashed flex items-center justify-center relative overflow-hidden"
+      className="w-full aspect-[2/3] flex items-center justify-center relative overflow-hidden"
       style={{
         backgroundColor: "#fefefe",
         opacity: 0.7,

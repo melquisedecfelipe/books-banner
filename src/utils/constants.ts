@@ -33,3 +33,19 @@ export const BANNER_DIMENSIONS = {
 export const IMAGE_LOAD_TIMEOUT = 3000
 export const RENDER_DELAY = 500
 
+/**
+ * Constants for "no cover" placeholder styling
+ * Used in both React component and canvas export
+ */
+export const NO_COVER_PLACEHOLDER = {
+  backgroundColor: "#e5e7eb", // bg-gray-200
+  textColor: "#9ca3af", // text-gray-400
+  fontSize: 12, // text-xs
+  fontFamily: "Arial",
+  text: "Sem capa",
+  borderWidth: 2,
+  borderStyle: "dashed",
+  borderColor: "#9ca3af", // text-gray-400
+  borderDashPattern: [5, 5], // For canvas dashed line
+} as const
+

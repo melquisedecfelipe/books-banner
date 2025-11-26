@@ -1,9 +1,10 @@
 import { SeriesData, Book } from "@/types"
-import { BANNER_DIMENSIONS } from "@/utils/constants"
+import { BANNER_DIMENSIONS, NO_COVER_PLACEHOLDER } from "@/utils/constants"
 import {
   PROGRESS_ICON_SIZE,
   PROGRESS_ICON_INNER_SIZE,
   PROGRESS_ICON_BORDER_WIDTH,
+  PROGRESS_ICON_STROKE_WIDTH,
   PROGRESS_LINE_HEIGHT,
   PROGRESS_LINE_WIDTH,
   PROGRESS_LINE_MARGIN,
@@ -240,9 +241,9 @@ export class BannerExportService {
     ctx.setLineDash([5, 5])
     ctx.strokeRect(x, y, COVER_WIDTH, COVER_HEIGHT)
 
-    // Question mark
+    // Question mark (bold, matching front-end font-bold)
     ctx.fillStyle = background
-    ctx.font = "120px serif"
+    ctx.font = "bold 120px serif"
     ctx.textAlign = "center"
     ctx.textBaseline = "middle"
     ctx.fillText("?", x + COVER_WIDTH / 2, y + COVER_HEIGHT / 2)
@@ -252,6 +253,7 @@ export class BannerExportService {
 
   /**
    * Draws a no-cover placeholder
+   * Uses shared constants to match front-end style
    */
   private static drawNoCoverPlaceholder(
     ctx: CanvasRenderingContext2D,
@@ -260,14 +262,26 @@ export class BannerExportService {
   ): void {
     ctx.save()
 
-    ctx.fillStyle = "#e5e7eb"
+    // Background
+    ctx.fillStyle = NO_COVER_PLACEHOLDER.backgroundColor
     ctx.fillRect(x, y, COVER_WIDTH, COVER_HEIGHT)
 
-    ctx.fillStyle = "#9ca3af"
-    ctx.font = "16px Arial"
+    // Border (dashed)
+    ctx.strokeStyle = NO_COVER_PLACEHOLDER.borderColor
+    ctx.lineWidth = NO_COVER_PLACEHOLDER.borderWidth
+    ctx.setLineDash(NO_COVER_PLACEHOLDER.borderDashPattern)
+    ctx.strokeRect(x, y, COVER_WIDTH, COVER_HEIGHT)
+
+    // Text
+    ctx.fillStyle = NO_COVER_PLACEHOLDER.textColor
+    ctx.font = `${NO_COVER_PLACEHOLDER.fontSize}px ${NO_COVER_PLACEHOLDER.fontFamily}`
     ctx.textAlign = "center"
     ctx.textBaseline = "middle"
-    ctx.fillText("Sem capa", x + COVER_WIDTH / 2, y + COVER_HEIGHT / 2)
+    ctx.fillText(
+      NO_COVER_PLACEHOLDER.text,
+      x + COVER_WIDTH / 2,
+      y + COVER_HEIGHT / 2
+    )
 
     ctx.restore()
   }
@@ -281,14 +295,22 @@ export class BannerExportService {
     y: number
   ): void {
     const sortedBooks = [...data.books].sort((a, b) => a.order - b.order)
+    
+    // Calculate spacing: icon + gap + line with margins + gap
+    const spacingBetweenIcons =
+      PROGRESS_ICON_SIZE +
+      PROGRESS_GAP +
+      PROGRESS_LINE_WIDTH +
+      2 * PROGRESS_LINE_MARGIN +
+      PROGRESS_GAP
+    
     const totalWidth =
       sortedBooks.length * PROGRESS_ICON_SIZE +
-      (sortedBooks.length - 1) * (PROGRESS_LINE_WIDTH + 2 * PROGRESS_LINE_MARGIN) +
-      (sortedBooks.length - 1) * PROGRESS_GAP
+      (sortedBooks.length - 1) * (PROGRESS_GAP + PROGRESS_LINE_WIDTH + 2 * PROGRESS_LINE_MARGIN + PROGRESS_GAP)
     const startX = (BANNER_DIMENSIONS.width - totalWidth) / 2
 
     sortedBooks.forEach((book, index) => {
-      const iconX = startX + index * (PROGRESS_ICON_SIZE + PROGRESS_LINE_WIDTH + 2 * PROGRESS_LINE_MARGIN + PROGRESS_GAP)
+      const iconX = startX + index * spacingBetweenIcons
       const iconY = y
 
       // Draw icon
@@ -296,7 +318,7 @@ export class BannerExportService {
 
       // Draw connector line (except for last book)
       if (index < sortedBooks.length - 1) {
-        const lineX = iconX + PROGRESS_ICON_SIZE + PROGRESS_LINE_MARGIN
+        const lineX = iconX + PROGRESS_ICON_SIZE + PROGRESS_GAP + PROGRESS_LINE_MARGIN
         const lineY = iconY + PROGRESS_ICON_SIZE / 2 - PROGRESS_LINE_HEIGHT / 2
         ctx.fillStyle = data.titleColor
         ctx.fillRect(lineX, lineY, PROGRESS_LINE_WIDTH, PROGRESS_LINE_HEIGHT)
@@ -334,38 +356,109 @@ export class BannerExportService {
     ctx.lineWidth = PROGRESS_ICON_BORDER_WIDTH
     ctx.stroke()
 
-    // Draw icon (simplified - using text for now)
-    ctx.fillStyle = colors.icon
-    ctx.font = `${PROGRESS_ICON_INNER_SIZE}px Arial`
-    ctx.textAlign = "center"
-    ctx.textBaseline = "middle"
+    // Draw icon SVG path
+    const centerX = x + PROGRESS_ICON_SIZE / 2
+    const centerY = y + PROGRESS_ICON_SIZE / 2
+    const iconSize = PROGRESS_ICON_INNER_SIZE
 
-    const iconSymbol = this.getStatusIconSymbol(status)
-    ctx.fillText(
-      iconSymbol,
-      x + PROGRESS_ICON_SIZE / 2,
-      y + PROGRESS_ICON_SIZE / 2
-    )
+    ctx.strokeStyle = colors.icon
+    ctx.fillStyle = colors.icon
+    ctx.lineWidth = PROGRESS_ICON_STROKE_WIDTH
+    ctx.lineCap = "round"
+    ctx.lineJoin = "round"
+
+    this.drawStatusIconPath(ctx, status, centerX, centerY, iconSize)
 
     ctx.restore()
   }
 
   /**
-   * Gets the symbol for a status icon
+   * Draws the SVG path for a status icon
    */
-  private static getStatusIconSymbol(status: Book["status"]): string {
+  private static drawStatusIconPath(
+    ctx: CanvasRenderingContext2D,
+    status: Book["status"],
+    centerX: number,
+    centerY: number,
+    size: number
+  ): void {
+    const scale = size / 24 // lucide icons are typically 24x24
+
+    ctx.save()
+    ctx.translate(centerX, centerY)
+    ctx.scale(scale, scale)
+    // Translate to center the icon (lucide icons are 24x24, so center is at 12, 12)
+    ctx.translate(-12, -12)
+
     switch (status) {
       case "read":
-        return "✓"
+        // Check icon (lucide-react Check)
+        ctx.beginPath()
+        ctx.moveTo(20, 6)
+        ctx.lineTo(9, 17)
+        ctx.lineTo(4, 12)
+        ctx.stroke()
+        break
+
       case "reading":
-        return "📖"
+        // BookOpen icon (lucide-react BookOpen)
+        ctx.beginPath()
+        // Left page
+        ctx.moveTo(2, 3)
+        ctx.lineTo(2, 21)
+        ctx.lineTo(12, 18)
+        ctx.lineTo(12, 6)
+        ctx.closePath()
+        ctx.stroke()
+        // Right page
+        ctx.beginPath()
+        ctx.moveTo(12, 6)
+        ctx.lineTo(12, 18)
+        ctx.lineTo(22, 21)
+        ctx.lineTo(22, 3)
+        ctx.closePath()
+        ctx.stroke()
+        break
+
       case "unread":
-        return "○"
+        // Circle icon (lucide-react Circle)
+        ctx.beginPath()
+        ctx.arc(12, 12, 9, 0, 2 * Math.PI)
+        ctx.stroke()
+        break
+
       case "unreleased":
-        return "📅"
+        // Calendar icon (lucide-react Calendar)
+        // Calendar body
+        ctx.beginPath()
+        ctx.rect(3, 4, 18, 18)
+        ctx.stroke()
+        // Top left line
+        ctx.beginPath()
+        ctx.moveTo(8, 2)
+        ctx.lineTo(8, 6)
+        ctx.stroke()
+        // Top right line
+        ctx.beginPath()
+        ctx.moveTo(16, 2)
+        ctx.lineTo(16, 6)
+        ctx.stroke()
+        // Horizontal divider
+        ctx.beginPath()
+        ctx.moveTo(3, 10)
+        ctx.lineTo(21, 10)
+        ctx.stroke()
+        break
+
       default:
-        return "○"
+        // Default to circle
+        ctx.beginPath()
+        ctx.arc(12, 12, 9, 0, 2 * Math.PI)
+        ctx.stroke()
+        break
     }
+
+    ctx.restore()
   }
 
   /**
