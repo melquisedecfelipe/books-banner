@@ -3,6 +3,7 @@ import { ButtonGroup, ButtonGroupItem } from "./ui/button-group"
 import { Book, BookStatus } from "@/types"
 import { isValidImageFile } from "@/utils/validation"
 import { CheckCircle2, BookOpen, Circle, Calendar } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface ManualBookAddProps {
   readonly onAddBook: (book: Book) => void
@@ -38,6 +39,8 @@ const STATUS_BUTTONS = [
 export const ManualBookAdd = memo(function ManualBookAdd({
   onAddBook,
 }: ManualBookAddProps): JSX.Element {
+  const { toast } = useToast()
+
   const fileInputRefs = {
     read: useRef<HTMLInputElement>(null),
     reading: useRef<HTMLInputElement>(null),
@@ -47,7 +50,11 @@ export const ManualBookAdd = memo(function ManualBookAdd({
   const createBookFromFile = useCallback(
     (file: File, status: BookStatus): void => {
       if (!isValidImageFile(file)) {
-        alert(INVALID_IMAGE_MESSAGE)
+        toast({
+          title: "Arquivo inválido",
+          description: INVALID_IMAGE_MESSAGE,
+          variant: "destructive",
+        })
         return
       }
 
@@ -73,11 +80,16 @@ export const ManualBookAdd = memo(function ManualBookAdd({
         }
       }
       reader.onerror = (): void => {
-        alert(FILE_READ_ERROR_MESSAGE)
+        toast({
+          title: "Erro ao ler arquivo",
+          description: FILE_READ_ERROR_MESSAGE,
+          variant: "destructive",
+        })
       }
       reader.readAsDataURL(file)
     },
-    [onAddBook]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [toast, onAddBook]
   )
 
   const handleFileSelect = useCallback(

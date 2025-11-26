@@ -5,6 +5,7 @@ import { BannerExportService } from "@/services/bannerExportService"
 import { BookCover } from "./BannerPreview/BookCover"
 import { BannerTitle } from "./BannerPreview/BannerTitle"
 import { SeriesProgress } from "./BannerPreview/SeriesProgress"
+import { useToast } from "@/hooks/use-toast"
 
 interface BannerPreviewProps {
   readonly data: SeriesData
@@ -42,6 +43,7 @@ export const BannerPreview = forwardRef<BannerPreviewHandle, BannerPreviewProps>
   ({ data, onRemoveBook }, ref) => {
     const bannerRef = useRef<HTMLDivElement>(null)
     const { convertToBase64 } = useImageConverter()
+    const { toast } = useToast()
 
     const handleDownload = useCallback(async (): Promise<void> => {
       if (!bannerRef.current) {
@@ -55,10 +57,14 @@ export const BannerPreview = forwardRef<BannerPreviewHandle, BannerPreviewProps>
       } catch (error: unknown) {
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error"
-        console.error("Error generating banner:", errorMessage)
-        alert(ERROR_MESSAGE)
+        
+        toast({
+          title: ERROR_MESSAGE,
+          description: errorMessage,
+          variant: "destructive",
+        })
       }
-    }, [data, convertToBase64])
+    }, [data, convertToBase64, toast])
 
     useImperativeHandle(
       ref,

@@ -3,7 +3,8 @@ import { Input } from "./ui/input"
 import { Card, CardContent } from "./ui/card"
 import { Button } from "./ui/button"
 import { ManualBookAdd } from "./ManualBookAdd"
-import { Download, Loader2 } from "lucide-react"
+import { BookSearchModal } from "./BookSearchModal"
+import { Download, Loader2, Search } from "lucide-react"
 import { BannerConfig, Book } from "@/types"
 import { FONT_OPTIONS } from "@/utils/constants"
 
@@ -120,9 +121,19 @@ function BookAddSection({ onAddBook }: BookAddSectionProps): JSX.Element {
       <label className="text-xs font-medium whitespace-nowrap">
         Adicionar Livro
       </label>
-      <div className="w-full sm:w-auto overflow-x-auto">
-        <ManualBookAdd onAddBook={onAddBook} />
-      </div>
+        <div className="w-full sm:w-auto overflow-x-auto flex sm:flex-row gap-2">
+          <ManualBookAdd onAddBook={onAddBook} />
+        </div>
+
+        <BookSearchModal
+          onAddBook={onAddBook}
+          trigger={
+            <Button variant="outline" size="sm" className="h-8 text-xs px-3" type="button">
+              <Search className="w-3 h-3 mr-1.5" />
+              Buscar Online
+            </Button>
+          }
+        />
     </div>
   )
 }
