@@ -1,4 +1,4 @@
-import { memo } from "react"
+import { memo, useMemo } from "react"
 import { Book, BookStatus } from "@/types"
 import { Check, BookOpen, Circle, Calendar, LucideIcon } from "lucide-react"
 import {
@@ -44,53 +44,89 @@ const STATUS_ICON_CONFIG: Record<BookStatus, StatusIconConfig> = {
     Icon: Calendar,
     colors: STATUS_COLORS.unreleased,
   },
+} as const
+
+const PROGRESS_CONTAINER_STYLES = {
+  marginTop: "48px",
+  gap: `${PROGRESS_GAP}px`,
+  maxWidth: "100%",
+} as const
+
+interface StatusIconProps {
+  readonly book: Book
+}
+
+function StatusIcon({ book }: StatusIconProps): JSX.Element {
+  const config = STATUS_ICON_CONFIG[book.status]
+  const { Icon, colors } = config
+
+  const iconContainerStyle = useMemo(
+    () => ({
+      width: `${PROGRESS_ICON_SIZE}px`,
+      height: `${PROGRESS_ICON_SIZE}px`,
+      borderWidth: `${PROGRESS_ICON_BORDER_WIDTH}px`,
+      borderStyle: "solid" as const,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    }),
+    [colors]
+  )
+
+  const iconStyle = useMemo(
+    () => ({
+      width: `${PROGRESS_ICON_INNER_SIZE}px`,
+      height: `${PROGRESS_ICON_INNER_SIZE}px`,
+      color: colors.icon,
+    }),
+    [colors.icon]
+  )
+
+  return (
+    <div
+      className="w-10 h-10 rounded-full flex items-center justify-center border-2"
+      style={iconContainerStyle}
+    >
+      <Icon
+        className="w-5 h-5"
+        strokeWidth={PROGRESS_ICON_STROKE_WIDTH}
+        style={iconStyle}
+      />
+    </div>
+  )
 }
 
 export const SeriesProgress = memo(function SeriesProgress({
   books,
   titleColor,
-}: SeriesProgressProps) {
-  if (books.length === 0) {
+}: SeriesProgressProps): JSX.Element | null {
+  const sortedBooks = useMemo(
+    () => [...books].sort((a, b) => a.order - b.order),
+    [books]
+  )
+
+  const connectorLineStyle = useMemo(
+    () => ({
+      height: `${PROGRESS_LINE_HEIGHT}px`,
+      width: `${PROGRESS_LINE_WIDTH}px`,
+      marginLeft: `${PROGRESS_LINE_MARGIN}px`,
+      marginRight: `${PROGRESS_LINE_MARGIN}px`,
+      backgroundColor: titleColor,
+      border: "none" as const,
+    }),
+    [titleColor]
+  )
+
+  if (sortedBooks.length === 0) {
     return null
-  }
-
-  const sortedBooks = [...books].sort((a, b) => a.order - b.order)
-
-  const getStatusIcon = (book: Book): JSX.Element => {
-    const config = STATUS_ICON_CONFIG[book.status]
-    const { Icon, colors } = config
-
-    return (
-      <div
-        className="w-10 h-10 rounded-full flex items-center justify-center border-2"
-        style={{
-          width: `${PROGRESS_ICON_SIZE}px`,
-          height: `${PROGRESS_ICON_SIZE}px`,
-          borderWidth: `${PROGRESS_ICON_BORDER_WIDTH}px`,
-          borderStyle: "solid",
-          borderColor: colors.border,
-          backgroundColor: colors.background,
-        }}
-      >
-        <Icon
-          className="w-5 h-5"
-          strokeWidth={PROGRESS_ICON_STROKE_WIDTH}
-          style={{
-            width: `${PROGRESS_ICON_INNER_SIZE}px`,
-            height: `${PROGRESS_ICON_INNER_SIZE}px`,
-            color: colors.icon,
-          }}
-        />
-      </div>
-    )
   }
 
   return (
     <div
-      className="flex items-center justify-center gap-2"
+      className="flex items-center justify-start sm:justify-center gap-2 w-full overflow-x-auto sm:overflow-x-visible flex-nowrap sm:flex-wrap"
       style={{
-        marginTop: "48px",
-        gap: `${PROGRESS_GAP}px`,
+        ...PROGRESS_CONTAINER_STYLES,
+        WebkitOverflowScrolling: "touch",
+        boxSizing: "border-box",
       }}
     >
       {sortedBooks.map((book, index) => {
@@ -99,22 +135,17 @@ export const SeriesProgress = memo(function SeriesProgress({
         return (
           <div
             key={book.id}
-            className="flex items-center"
+            className="flex items-center flex-shrink-0"
             style={{ gap: `${PROGRESS_GAP}px` }}
           >
-            <div className="relative">{getStatusIcon(book)}</div>
+            <div className="relative">
+              <StatusIcon book={book} />
+            </div>
             {showConnector && (
               <div
                 data-progress-line="true"
-                className="h-1 w-12 mx-1"
-                style={{
-                  height: `${PROGRESS_LINE_HEIGHT}px`,
-                  width: `${PROGRESS_LINE_WIDTH}px`,
-                  marginLeft: `${PROGRESS_LINE_MARGIN}px`,
-                  marginRight: `${PROGRESS_LINE_MARGIN}px`,
-                  backgroundColor: titleColor,
-                  border: "none",
-                }}
+                className="h-1 w-12 mx-1 flex-shrink-0"
+                style={connectorLineStyle}
               />
             )}
           </div>

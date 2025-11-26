@@ -59,7 +59,12 @@
     height: 100%;
     margin: 0;
     padding: 0;
-    overflow: hidden;
+  }
+  
+  @media (min-width: 640px) {
+    html, body {
+      overflow: hidden;
+    }
   }
   #root {
     width: 100%;

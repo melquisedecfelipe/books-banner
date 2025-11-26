@@ -44,8 +44,8 @@ function App(): JSX.Element {
 
   return (
     <div
-      className="relative"
-      style={{ width: "100vw", height: "100vh", overflow: "hidden" }}
+      className="relative w-full"
+      style={{ minHeight: "100vh" }}
     >
       <BannerControls
         config={config}

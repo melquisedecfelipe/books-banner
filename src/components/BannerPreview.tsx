@@ -1,4 +1,4 @@
-import { useRef, useImperativeHandle, forwardRef, useCallback } from "react"
+import { useRef, useImperativeHandle, forwardRef, useCallback, useMemo } from "react"
 import { SeriesData } from "@/types"
 import { useImageConverter } from "@/hooks/useImageConverter"
 import { BannerExportService } from "@/services/bannerExportService"
@@ -12,8 +12,31 @@ interface BannerPreviewProps {
 }
 
 export interface BannerPreviewHandle {
-  download: () => Promise<void>
+  readonly download: () => Promise<void>
 }
+
+const CONTAINER_STYLES = {
+  minHeight: "100vh",
+} as const
+
+const BANNER_CONTENT_STYLES = {
+  width: "100%",
+  minHeight: "100vh",
+  display: "flex",
+  flexDirection: "column" as const,
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "16px",
+  boxSizing: "border-box" as const,
+} as const
+
+const BOOKS_CONTAINER_STYLES = {
+  gap: "48px",
+  width: "100%",
+  maxWidth: "100%",
+} as const
+
+const ERROR_MESSAGE = "Erro ao gerar o banner. Tente novamente."
 
 export const BannerPreview = forwardRef<BannerPreviewHandle, BannerPreviewProps>(
   ({ data, onRemoveBook }, ref) => {
@@ -29,13 +52,11 @@ export const BannerPreview = forwardRef<BannerPreviewHandle, BannerPreviewProps>
         await BannerExportService.exportBanner(bannerRef.current, data, {
           convertToBase64,
         })
-      } catch (error) {
-        if (error instanceof Error) {
-          console.error("Error generating banner:", error.message)
-        } else {
-          console.error("Error generating banner:", error)
-        }
-        alert("Erro ao gerar o banner. Tente novamente.")
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error"
+        console.error("Error generating banner:", errorMessage)
+        alert(ERROR_MESSAGE)
       }
     }, [data, convertToBase64])
 
@@ -47,20 +68,31 @@ export const BannerPreview = forwardRef<BannerPreviewHandle, BannerPreviewProps>
       [handleDownload]
     )
 
+    const outerContainerStyle = useMemo(
+      () => ({
+        ...CONTAINER_STYLES,
+        backgroundColor: data.background,
+      }),
+      [data.background]
+    )
+
+    const bannerContentStyle = useMemo(
+      () => ({
+        ...BANNER_CONTENT_STYLES,
+        backgroundColor: data.background,
+      }),
+      [data.background]
+    )
+
     return (
-      <div className="absolute inset-0" style={{ width: "100vw", height: "100vh" }}>
+      <div
+        className="relative sm:absolute sm:inset-0 w-full"
+        style={outerContainerStyle}
+      >
         <div
           ref={bannerRef}
-          className="absolute inset-0 w-full h-full"
-          style={{
-            backgroundColor: data.background,
-            width: "100vw",
-            height: "100vh",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          className="w-full sm:absolute sm:inset-0 sm:h-full"
+          style={bannerContentStyle}
         >
           {data.name && (
             <BannerTitle name={data.name} color={data.titleColor} font={data.titleFont} />
@@ -70,7 +102,7 @@ export const BannerPreview = forwardRef<BannerPreviewHandle, BannerPreviewProps>
             <>
               <div
                 className="flex flex-wrap justify-center items-center"
-                style={{ gap: "48px", width: "100%" }}
+                style={BOOKS_CONTAINER_STYLES}
               >
                 {data.books.map((book) => (
                   <BookCover
