@@ -15,8 +15,7 @@ export const BannerTitle = memo(function BannerTitle({
     <h1
       className="text-7xl font-bold text-center"
       style={{
-        marginTop: "80px",
-        marginBottom: "100px",
+        marginBottom: "48px",
         color,
         fontFamily: font,
       }}

@@ -1,278 +1,389 @@
-import html2canvas from "html2canvas"
-import { SeriesData } from "@/types"
-import { BANNER_DIMENSIONS, RENDER_DELAY } from "@/utils/constants"
+import { SeriesData, Book } from "@/types"
+import { BANNER_DIMENSIONS } from "@/utils/constants"
 import {
   PROGRESS_ICON_SIZE,
   PROGRESS_ICON_INNER_SIZE,
   PROGRESS_ICON_BORDER_WIDTH,
-  PROGRESS_ICON_STROKE_WIDTH,
   PROGRESS_LINE_HEIGHT,
   PROGRESS_LINE_WIDTH,
   PROGRESS_LINE_MARGIN,
-  PROGRESS_CONTAINER_MARGIN_TOP,
   PROGRESS_GAP,
+  STATUS_COLORS,
 } from "@/utils/progressConstants"
-import { ImageService } from "./imageService"
 
 interface BannerExportOptions {
   convertToBase64: (url: string) => Promise<string>
 }
 
 /**
+ * Layout constants for banner export
+ * Calculated to fit exactly 6 covers per row: 6 * COVER_WIDTH + 5 * COVER_GAP = 1920
+ */
+const COVER_WIDTH = 220
+const COVER_HEIGHT = 320 // 220 * 1.5 (aspect ratio 2:3)
+const COVER_GAP = 48
+const TITLE_FONT_SIZE = 72
+const TITLE_TO_COVERS_GAP = 48
+const COVERS_TO_PROGRESS_GAP = 48
+
+/**
  * Service for exporting banners to images
+ * Generates images directly on canvas without depending on DOM
  */
 export class BannerExportService {
   /**
-   * Exports a banner element to a PNG image
-   * @param element - Banner element to export
+   * Exports a banner to a PNG image
+   * @param _element - Unused (kept for compatibility)
    * @param data - Series data for styling
    * @param options - Export options
    * @returns Promise that resolves when export is complete
    */
   static async exportBanner(
-    element: HTMLElement,
+    _element: HTMLElement,
     data: SeriesData,
     options: BannerExportOptions
   ): Promise<void> {
     const { convertToBase64 } = options
 
-    // Convert all images to base64
-    await ImageService.convertImagesToBase64(element, convertToBase64)
+    // Create canvas
+    const canvas = document.createElement("canvas")
+    canvas.width = BANNER_DIMENSIONS.width
+    canvas.height = BANNER_DIMENSIONS.height
+    const ctx = canvas.getContext("2d")
 
-    // Calculate scale factor
-    const viewportWidth = window.innerWidth || BANNER_DIMENSIONS.width
-    const widthScale = BANNER_DIMENSIONS.width / viewportWidth
-
-    if (!Number.isFinite(widthScale) || widthScale <= 0) {
-      throw new Error("Invalid width scale calculation")
+    if (!ctx) {
+      throw new Error("Failed to get canvas context")
     }
 
-    // Create clone for export
-    const clone = this.createExportClone(element, data, widthScale)
+    // Draw background
+    ctx.fillStyle = data.background
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-    // Copy converted image sources to clone
-    this.copyImageSources(element, clone)
+    // Calculate layout
+    const layout = this.calculateLayout(data.books.length)
 
-    // Wait for images to load
-    await ImageService.waitForImagesToLoad(clone)
+    // Draw title
+    if (data.name) {
+      this.drawTitle(ctx, data, layout.titleY)
+    }
 
-    // Wait for rendering
-    await new Promise((resolve) => setTimeout(resolve, RENDER_DELAY))
+    // Draw book covers
+    await this.drawBookCovers(ctx, data, layout, convertToBase64)
 
-    // Capture with html2canvas
-    const canvas = await html2canvas(clone, {
-      backgroundColor: data.background,
-      width: BANNER_DIMENSIONS.width,
-      height: BANNER_DIMENSIONS.height,
-      scale: 1,
-      useCORS: false,
-      allowTaint: false,
-      logging: false,
-      imageTimeout: 15000,
-    })
-
-    // Cleanup
-    if (document.body.contains(clone)) {
-      document.body.removeChild(clone)
+    // Draw progress
+    if (data.books.length > 0) {
+      this.drawProgress(ctx, data, layout.progressY)
     }
 
     // Download
     this.downloadCanvas(canvas, data.name)
   }
 
-  private static createExportClone(
-    element: HTMLElement,
-    data: SeriesData,
-    widthScale: number
-  ): HTMLElement {
-    const clone = element.cloneNode(true) as HTMLElement
-    const computedStyle = window.getComputedStyle(element)
+  /**
+   * Calculates the layout for the banner
+   */
+  private static calculateLayout(bookCount: number): {
+    readonly booksPerRow: number
+    readonly rows: number
+    readonly startY: number
+    readonly titleY: number
+    readonly progressY: number
+  } {
+    // Calculate how many books fit per row (max 6 per row)
+    const availableWidth = BANNER_DIMENSIONS.width - 2 * COVER_GAP
+    const calculatedBooksPerRow = Math.floor(
+      (availableWidth + COVER_GAP) / (COVER_WIDTH + COVER_GAP)
+    )
+    const booksPerRow = Math.min(calculatedBooksPerRow, 6)
+    const rows = Math.ceil(bookCount / booksPerRow)
 
-    // Apply base styles
-    clone.style.cssText = element.style.cssText
-    clone.style.backgroundColor = computedStyle.backgroundColor || data.background
-    clone.style.display = computedStyle.display || "flex"
-    clone.style.flexDirection = computedStyle.flexDirection || "column"
-    clone.style.alignItems = computedStyle.alignItems || "center"
-    clone.style.justifyContent = computedStyle.justifyContent || "center"
+    // Calculate total content height
+    const totalCoversHeight = rows * COVER_HEIGHT
+    const totalCoversGaps = (rows - 1) * COVER_GAP
+    const coversAreaHeight = totalCoversHeight + totalCoversGaps
+    const totalContentHeight =
+      TITLE_FONT_SIZE +
+      TITLE_TO_COVERS_GAP +
+      coversAreaHeight +
+      COVERS_TO_PROGRESS_GAP +
+      PROGRESS_ICON_SIZE
 
-    // Position clone off-screen
-    clone.style.position = "fixed"
-    clone.style.left = "-9999px"
-    clone.style.top = "0"
-    clone.style.width = `${BANNER_DIMENSIONS.width}px`
-    clone.style.height = `${BANNER_DIMENSIONS.height}px`
-    clone.style.opacity = "1"
-    clone.style.visibility = "visible"
-    clone.style.zIndex = "-1"
-    clone.style.pointerEvents = "none"
+    // Center content vertically
+    const contentStartY = (BANNER_DIMENSIONS.height - totalContentHeight) / 2
 
-    document.body.appendChild(clone)
+    // Calculate positions relative to content start
+    const titleY = contentStartY
+    const titleBottom = titleY + TITLE_FONT_SIZE
+    const startY = titleBottom + TITLE_TO_COVERS_GAP
+    const progressY = startY + coversAreaHeight + COVERS_TO_PROGRESS_GAP
 
-    // Scale internal elements
-    this.scaleCloneElements(clone, data, widthScale)
-
-    return clone
+    return {
+      booksPerRow,
+      rows,
+      startY,
+      titleY,
+      progressY,
+    }
   }
 
-  private static scaleCloneElements(
-    clone: HTMLElement,
+  /**
+   * Draws the title on the canvas
+   */
+  private static drawTitle(
+    ctx: CanvasRenderingContext2D,
     data: SeriesData,
-    widthScale: number
+    y: number
   ): void {
-    const titleElement = clone.querySelector("h1")
-    if (titleElement) {
-      const baseFontSize = 72
-      titleElement.style.fontSize = `${baseFontSize * widthScale}px`
-      titleElement.style.marginTop = `${80 * widthScale}px`
-      titleElement.style.marginBottom = `${100 * widthScale}px`
-      titleElement.style.color = data.titleColor
-      titleElement.style.fontFamily = data.titleFont
-    }
+    ctx.save()
 
-    // Scale book covers
-    const bookCovers = clone.querySelectorAll<HTMLElement>("[style*='width: 320px']")
-    bookCovers.forEach((cover) => {
-      cover.style.width = `${320 * widthScale}px`
-    })
+    ctx.font = `${TITLE_FONT_SIZE}px ${data.titleFont}`
+    ctx.fillStyle = data.titleColor
+    ctx.textAlign = "center"
+    ctx.textBaseline = "top"
 
-    // Scale gap
-    const gapContainer = clone.querySelector<HTMLElement>("[style*='gap: 60px']")
-    if (gapContainer) {
-      gapContainer.style.gap = `${60 * widthScale}px`
-    }
+    const x = BANNER_DIMENSIONS.width / 2
+    ctx.fillText(data.name, x, y)
 
-
-    // Scale question marks
-    const questionMarks = clone.querySelectorAll<HTMLElement>("[style*='fontSize: 120px']")
-    questionMarks.forEach((qm) => {
-      qm.style.fontSize = `${120 * widthScale}px`
-    })
-
-    // Scale unreleased placeholders
-    const unreleasedPlaceholders = clone.querySelectorAll<HTMLElement>("[style*='opacity: 0.7']")
-    unreleasedPlaceholders.forEach((placeholder) => {
-      placeholder.style.backgroundColor = "#fefefe"
-      placeholder.style.opacity = "0.7"
-
-      const bgColor = data.background
-      const borderDiv = placeholder.querySelector<HTMLElement>("div[class*='border-dashed']")
-      if (borderDiv) {
-        borderDiv.style.borderColor = bgColor
-      }
-
-      const questionMark = placeholder.querySelector<HTMLElement>("span")
-      if (questionMark) {
-        questionMark.style.color = bgColor
-        questionMark.style.display = "flex"
-        questionMark.style.alignItems = "center"
-        questionMark.style.justifyContent = "center"
-        questionMark.style.position = "absolute"
-        questionMark.style.top = "0"
-        questionMark.style.left = "0"
-        questionMark.style.right = "0"
-        questionMark.style.bottom = "0"
-        questionMark.style.margin = "0"
-        questionMark.style.padding = "0"
-        questionMark.style.width = "100%"
-        questionMark.style.height = "100%"
-      }
-
-      placeholder.style.display = "flex"
-      placeholder.style.alignItems = "center"
-      placeholder.style.justifyContent = "center"
-    })
-
-    // Scale series progress component
-    // Find the progress container by looking for flex container with gap-2 and mt-8
-    const allDivs = clone.querySelectorAll<HTMLElement>("div")
-    let progressContainer: HTMLElement | null = null
-    
-    for (const div of Array.from(allDivs)) {
-      const classList = div.className || ""
-      if (classList.includes("flex") && classList.includes("items-center") && classList.includes("justify-center")) {
-        // Check if it has children with rounded-full (progress icons)
-        const hasProgressIcons = div.querySelector("div[class*='rounded-full']")
-        if (hasProgressIcons) {
-          progressContainer = div
-          break
-        }
-      }
-    }
-    
-    if (progressContainer) {
-      // Apply margin-top and gap explicitly
-      progressContainer.style.marginTop = `${PROGRESS_CONTAINER_MARGIN_TOP * widthScale}px`
-      progressContainer.style.gap = `${PROGRESS_GAP * widthScale}px`
-
-      // Scale progress icons (the rounded-full divs)
-      const progressIcons = progressContainer.querySelectorAll<HTMLElement>(
-        "div[class*='rounded-full']"
-      )
-      progressIcons.forEach((icon) => {
-        icon.style.width = `${PROGRESS_ICON_SIZE * widthScale}px`
-        icon.style.height = `${PROGRESS_ICON_SIZE * widthScale}px`
-        icon.style.borderWidth = `${PROGRESS_ICON_BORDER_WIDTH * widthScale}px`
-        icon.style.borderStyle = "solid"
-      })
-
-      // Scale progress SVG icons inside the rounded-full divs
-      const progressSvgs = progressContainer.querySelectorAll<SVGElement>("svg")
-      progressSvgs.forEach((svg) => {
-        svg.style.width = `${PROGRESS_ICON_INNER_SIZE * widthScale}px`
-        svg.style.height = `${PROGRESS_ICON_INNER_SIZE * widthScale}px`
-
-        const strokeWidth =
-          svg.getAttribute("strokeWidth") ||
-          String(PROGRESS_ICON_STROKE_WIDTH)
-        svg.setAttribute(
-          "strokeWidth",
-          String(parseFloat(strokeWidth) * widthScale)
-        )
-      })
-
-      // Scale progress lines (connectors between icons)
-      const progressLines = progressContainer.querySelectorAll<HTMLElement>(
-        "[data-progress-line='true']"
-      )
-      progressLines.forEach((line) => {
-        line.style.height = `${PROGRESS_LINE_HEIGHT * widthScale}px`
-        line.style.width = `${PROGRESS_LINE_WIDTH * widthScale}px`
-        line.style.marginLeft = `${PROGRESS_LINE_MARGIN * widthScale}px`
-        line.style.marginRight = `${PROGRESS_LINE_MARGIN * widthScale}px`
-        // Use title color for lines
-        line.style.setProperty("background-color", data.titleColor, "important")
-        line.style.setProperty("background", data.titleColor, "important")
-        // Remove any color classes that might override
-        line.className = line.className.replace(/bg-\w+-\d+/g, "").trim()
-      })
-
-      // Scale inner wrapper divs (the ones containing each icon)
-      const iconWrappers = progressContainer.querySelectorAll<HTMLElement>(
-        "div[class*='flex'][class*='items-center']"
-      )
-      iconWrappers.forEach((wrapper) => {
-        // Check if this wrapper contains a rounded-full div (it's an icon wrapper)
-        if (wrapper.querySelector("div[class*='rounded-full']")) {
-          wrapper.style.gap = `${PROGRESS_GAP * widthScale}px`
-        }
-      })
-    }
-
+    ctx.restore()
   }
 
-  private static copyImageSources(original: HTMLElement, clone: HTMLElement): void {
-    const originalImages = original.querySelectorAll<HTMLImageElement>("img")
-    const cloneImages = clone.querySelectorAll<HTMLImageElement>("img")
+  /**
+   * Draws all book covers on the canvas
+   */
+  private static async drawBookCovers(
+    ctx: CanvasRenderingContext2D,
+    data: SeriesData,
+    layout: ReturnType<typeof this.calculateLayout>,
+    convertToBase64: (url: string) => Promise<string>
+  ): Promise<void> {
+    const sortedBooks = [...data.books].sort((a, b) => a.order - b.order)
 
-    originalImages.forEach((originalImg, index) => {
-      if (cloneImages[index]) {
-        cloneImages[index].src = originalImg.src
-        cloneImages[index].setAttribute("src", originalImg.src)
+    for (let i = 0; i < sortedBooks.length; i++) {
+      const book = sortedBooks[i]
+      const row = Math.floor(i / layout.booksPerRow)
+      const col = i % layout.booksPerRow
+
+      // Calculate books in this row
+      const booksInRow = Math.min(
+        layout.booksPerRow,
+        sortedBooks.length - row * layout.booksPerRow
+      )
+
+      // Calculate startX for this row (centered)
+      const rowWidth = booksInRow * COVER_WIDTH + (booksInRow - 1) * COVER_GAP
+      const rowStartX = (BANNER_DIMENSIONS.width - rowWidth) / 2
+
+      const x = rowStartX + col * (COVER_WIDTH + COVER_GAP)
+      const y = layout.startY + row * (COVER_HEIGHT + COVER_GAP)
+
+      await this.drawBookCover(ctx, book, data.background, x, y, convertToBase64)
+    }
+  }
+
+  /**
+   * Draws a single book cover on the canvas
+   */
+  private static async drawBookCover(
+    ctx: CanvasRenderingContext2D,
+    book: Book,
+    background: string,
+    x: number,
+    y: number,
+    convertToBase64: (url: string) => Promise<string>
+  ): Promise<void> {
+    if (book.status === "unreleased") {
+      this.drawUnreleasedPlaceholder(ctx, background, x, y)
+      return
+    }
+
+    if (!book.thumbnail) {
+      this.drawNoCoverPlaceholder(ctx, x, y)
+      return
+    }
+
+    try {
+      // Convert to base64 if needed
+      let imageUrl = book.thumbnail
+      if (!imageUrl.startsWith("data:")) {
+        imageUrl = await convertToBase64(imageUrl)
+      }
+
+      // Load image
+      const img = await this.loadImage(imageUrl)
+      ctx.drawImage(img, x, y, COVER_WIDTH, COVER_HEIGHT)
+    } catch (error) {
+      console.warn("Failed to load book cover:", error)
+      this.drawNoCoverPlaceholder(ctx, x, y)
+    }
+  }
+
+  /**
+   * Draws an unreleased placeholder
+   */
+  private static drawUnreleasedPlaceholder(
+    ctx: CanvasRenderingContext2D,
+    background: string,
+    x: number,
+    y: number
+  ): void {
+    ctx.save()
+
+    // Background
+    ctx.fillStyle = "#fefefe"
+    ctx.globalAlpha = 0.7
+    ctx.fillRect(x, y, COVER_WIDTH, COVER_HEIGHT)
+
+    // Border
+    ctx.globalAlpha = 1
+    ctx.strokeStyle = background
+    ctx.lineWidth = 2
+    ctx.setLineDash([5, 5])
+    ctx.strokeRect(x, y, COVER_WIDTH, COVER_HEIGHT)
+
+    // Question mark
+    ctx.fillStyle = background
+    ctx.font = "120px serif"
+    ctx.textAlign = "center"
+    ctx.textBaseline = "middle"
+    ctx.fillText("?", x + COVER_WIDTH / 2, y + COVER_HEIGHT / 2)
+
+    ctx.restore()
+  }
+
+  /**
+   * Draws a no-cover placeholder
+   */
+  private static drawNoCoverPlaceholder(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number
+  ): void {
+    ctx.save()
+
+    ctx.fillStyle = "#e5e7eb"
+    ctx.fillRect(x, y, COVER_WIDTH, COVER_HEIGHT)
+
+    ctx.fillStyle = "#9ca3af"
+    ctx.font = "16px Arial"
+    ctx.textAlign = "center"
+    ctx.textBaseline = "middle"
+    ctx.fillText("Sem capa", x + COVER_WIDTH / 2, y + COVER_HEIGHT / 2)
+
+    ctx.restore()
+  }
+
+  /**
+   * Draws the progress indicator
+   */
+  private static drawProgress(
+    ctx: CanvasRenderingContext2D,
+    data: SeriesData,
+    y: number
+  ): void {
+    const sortedBooks = [...data.books].sort((a, b) => a.order - b.order)
+    const totalWidth =
+      sortedBooks.length * PROGRESS_ICON_SIZE +
+      (sortedBooks.length - 1) * (PROGRESS_LINE_WIDTH + 2 * PROGRESS_LINE_MARGIN) +
+      (sortedBooks.length - 1) * PROGRESS_GAP
+    const startX = (BANNER_DIMENSIONS.width - totalWidth) / 2
+
+    sortedBooks.forEach((book, index) => {
+      const iconX = startX + index * (PROGRESS_ICON_SIZE + PROGRESS_LINE_WIDTH + 2 * PROGRESS_LINE_MARGIN + PROGRESS_GAP)
+      const iconY = y
+
+      // Draw icon
+      this.drawProgressIcon(ctx, book.status, iconX, iconY)
+
+      // Draw connector line (except for last book)
+      if (index < sortedBooks.length - 1) {
+        const lineX = iconX + PROGRESS_ICON_SIZE + PROGRESS_LINE_MARGIN
+        const lineY = iconY + PROGRESS_ICON_SIZE / 2 - PROGRESS_LINE_HEIGHT / 2
+        ctx.fillStyle = data.titleColor
+        ctx.fillRect(lineX, lineY, PROGRESS_LINE_WIDTH, PROGRESS_LINE_HEIGHT)
       }
     })
   }
 
+  /**
+   * Draws a progress icon
+   */
+  private static drawProgressIcon(
+    ctx: CanvasRenderingContext2D,
+    status: Book["status"],
+    x: number,
+    y: number
+  ): void {
+    const colors = STATUS_COLORS[status]
+
+    ctx.save()
+
+    // Draw circle background
+    ctx.fillStyle = colors.background
+    ctx.beginPath()
+    ctx.arc(
+      x + PROGRESS_ICON_SIZE / 2,
+      y + PROGRESS_ICON_SIZE / 2,
+      PROGRESS_ICON_SIZE / 2 - PROGRESS_ICON_BORDER_WIDTH / 2,
+      0,
+      2 * Math.PI
+    )
+    ctx.fill()
+
+    // Draw border
+    ctx.strokeStyle = colors.border
+    ctx.lineWidth = PROGRESS_ICON_BORDER_WIDTH
+    ctx.stroke()
+
+    // Draw icon (simplified - using text for now)
+    ctx.fillStyle = colors.icon
+    ctx.font = `${PROGRESS_ICON_INNER_SIZE}px Arial`
+    ctx.textAlign = "center"
+    ctx.textBaseline = "middle"
+
+    const iconSymbol = this.getStatusIconSymbol(status)
+    ctx.fillText(
+      iconSymbol,
+      x + PROGRESS_ICON_SIZE / 2,
+      y + PROGRESS_ICON_SIZE / 2
+    )
+
+    ctx.restore()
+  }
+
+  /**
+   * Gets the symbol for a status icon
+   */
+  private static getStatusIconSymbol(status: Book["status"]): string {
+    switch (status) {
+      case "read":
+        return "✓"
+      case "reading":
+        return "📖"
+      case "unread":
+        return "○"
+      case "unreleased":
+        return "📅"
+      default:
+        return "○"
+    }
+  }
+
+  /**
+   * Loads an image from a URL
+   */
+  private static loadImage(url: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      img.onload = () => resolve(img)
+      img.onerror = reject
+      img.src = url
+    })
+  }
+
+  /**
+   * Downloads the canvas as a PNG image
+   */
   private static downloadCanvas(canvas: HTMLCanvasElement, seriesName: string): void {
     const link = document.createElement("a")
     const sanitizedName = seriesName.trim() || "banner"
@@ -281,4 +392,3 @@ export class BannerExportService {
     link.click()
   }
 }
-

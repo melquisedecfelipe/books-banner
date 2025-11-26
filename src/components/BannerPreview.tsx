@@ -70,7 +70,7 @@ export const BannerPreview = forwardRef<BannerPreviewHandle, BannerPreviewProps>
             <>
               <div
                 className="flex flex-wrap justify-center items-center"
-                style={{ gap: "60px", width: "100%" }}
+                style={{ gap: "48px", width: "100%" }}
               >
                 {data.books.map((book) => (
                   <BookCover

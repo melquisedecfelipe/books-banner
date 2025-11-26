@@ -9,7 +9,6 @@ import {
   PROGRESS_LINE_HEIGHT,
   PROGRESS_LINE_WIDTH,
   PROGRESS_LINE_MARGIN,
-  PROGRESS_CONTAINER_MARGIN_TOP,
   PROGRESS_GAP,
   STATUS_COLORS,
 } from "@/utils/progressConstants"
@@ -88,9 +87,9 @@ export const SeriesProgress = memo(function SeriesProgress({
 
   return (
     <div
-      className="flex items-center justify-center gap-2 mt-8"
+      className="flex items-center justify-center gap-2"
       style={{
-        marginTop: `${PROGRESS_CONTAINER_MARGIN_TOP}px`,
+        marginTop: "48px",
         gap: `${PROGRESS_GAP}px`,
       }}
     >

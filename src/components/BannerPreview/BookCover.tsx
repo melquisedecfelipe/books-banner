@@ -19,7 +19,7 @@ export const BookCover = memo(function BookCover({
   }
 
   return (
-    <div className="relative group" style={{ width: "320px", flexShrink: 0 }}>
+    <div className="relative group" style={{ width: "220px", flexShrink: 0 }}>
       {book.thumbnail ? (
         <img
           src={book.thumbnail}
