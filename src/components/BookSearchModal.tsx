@@ -6,7 +6,7 @@ import { RadioGroup, RadioGroupItem } from "./ui/radio-group"
 import { Label } from "./ui/label"
 import { Book, BookStatus } from "@/types"
 import { Search, Loader2, CheckCircle2 } from "lucide-react"
-import { useBookSearch, type BookSearchResult } from "@/hooks/useBookSearch"
+import { useBookSearch } from "@/hooks/useBookSearch"
 
 interface BookSearchModalProps {
   readonly onAddBook: (book: Book) => void

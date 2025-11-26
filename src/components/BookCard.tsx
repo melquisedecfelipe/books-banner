@@ -56,8 +56,7 @@ export function BookCard({ book, onStatusChange, onRemove }: BookCardProps) {
         <div className="space-y-2">
           <Select
             value={book.status}
-            onChange={(e) => onStatusChange(book.id, e.target.value as BookStatus)}
-            className="text-xs h-8"
+            onValueChange={(value) => onStatusChange(book.id, value as BookStatus)}
           >
             {statusOptions.map((option) => (
               <option key={option.value} value={option.value}>
